@@ -10,6 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
+	"github.com/svensemilia/imagelink-go/constants"
 	"github.com/svensemilia/imagelink-go/image"
 )
 
@@ -147,7 +148,7 @@ func GetImages(folder, userSub string) ([][]byte, error) {
 			fmt.Println("Error occured while reading from Bucket:", err)
 			return bytes, err
 		}
-		bytes = append(bytes, image.ScaleImage2(buffer.Bytes(), 256))
+		bytes = append(bytes, image.ScaleImage2(buffer.Bytes(), constants.ImageSize))
 	}
 	return bytes, nil
 }

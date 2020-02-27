@@ -53,7 +53,6 @@ func ScaleImage(imageData []byte, size int) {
 }
 
 func ScaleImage2(imageData []byte, size int) []byte {
-	fmt.Println("hello")
 	imageDec, _, _ := image.Decode(bytes.NewReader(imageData))
 
 	rect := imageDec.Bounds()

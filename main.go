@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 
 	"github.com/svensemilia/imagelink-go/aws"
@@ -188,6 +187,14 @@ func main() {
 	fmt.Println(argsWithoutProg)
 
 	router := gin.Default()
+	router.Use(CORS())
+	//router.Use(cors.Default())
+	/*New(cors.Config{
+		AllowAllOrigins: true,
+		AllowMethods:    []string{"POST", "GET", "OPTIONS", "PUT", "DELETE"},
+		AllowHeaders:    []string{"Origin", "Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"},
+	}))
+	*/
 	router.GET("/healthcheck", healthCheck)
 	router.POST("/androidUpload", androidUpload)
 	router.POST("/upload", uploadFiles)
@@ -195,10 +202,31 @@ func main() {
 	router.GET("/images", images)
 	router.GET("/images/:folder", images)
 	router.GET("/scale", imageDownloadScaled)
-
-	router.Use(cors.Default())
 	router.Run(fmt.Sprintf(":%s", "8080"))
 }
+
+func CORS() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	}
+}
+
+/*
+AllowOrigins:    []string{"http://localhost:8080", "*"},
+		AllowOriginFunc: func(origin string) bool {
+			return true
+		},
+*/
 
 // export PATH=$PATH:/usr/local/go/bin
 // go run .\server.go .\jwtLib.go .\s3Service.go
