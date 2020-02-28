@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 
@@ -155,32 +156,28 @@ func imageDownload(c *gin.Context) {
 }
 
 func images(c *gin.Context) {
-	folder := c.Param("folder")
+	resolution := c.Query("resolution")
+	album := c.DefaultQuery("album", "")
+	continueToken := c.DefaultQuery("continue", "")
+	fmt.Println(resolution, album, continueToken)
 	jwt := c.Request.Header.Get("Authorization")
 	userSub := aws.ExtractSub(jwt)
-	images, err := aws.GetImages(folder, userSub)
 
-	ret := gin.H{}
+	resolutionInt, err := strconv.Atoi(resolution)
 	if err != nil {
-		ret["error"] = "Reading from S3 failed"
-		c.JSON(500, ret)
+		c.JSON(500, gin.H{"error": "resolution param must be an int"})
 		return
 	}
-	count := 1
-	for _, img := range images {
-		ret[fmt.Sprintf("img%d", count)] = img
-		count++
-	}
-	c.JSON(200, ret)
-}
 
-/*
-func setupResponse(w *http.ResponseWriter, req *http.Request) {
-	(*w).Header().Set("Access-Control-Allow-Origin", "*")
-	(*w).Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-	(*w).Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+	images, err := aws.GetImages(album, continueToken, userSub, resolutionInt)
+
+	if err != nil {
+		c.JSON(500, gin.H{"error": "Reading from S3 failed"})
+		return
+	}
+
+	c.JSON(200, images)
 }
-*/
 
 func main() {
 	argsWithoutProg := os.Args[1:]
@@ -188,19 +185,11 @@ func main() {
 
 	router := gin.Default()
 	router.Use(CORS())
-	//router.Use(cors.Default())
-	/*New(cors.Config{
-		AllowAllOrigins: true,
-		AllowMethods:    []string{"POST", "GET", "OPTIONS", "PUT", "DELETE"},
-		AllowHeaders:    []string{"Origin", "Accept", "Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization"},
-	}))
-	*/
 	router.GET("/healthcheck", healthCheck)
 	router.POST("/androidUpload", androidUpload)
 	router.POST("/upload", uploadFiles)
 	router.GET("/image", imageDownload)
 	router.GET("/images", images)
-	router.GET("/images/:folder", images)
 	router.GET("/scale", imageDownloadScaled)
 	router.Run(fmt.Sprintf(":%s", "8080"))
 }
@@ -220,13 +209,6 @@ func CORS() gin.HandlerFunc {
 		c.Next()
 	}
 }
-
-/*
-AllowOrigins:    []string{"http://localhost:8080", "*"},
-		AllowOriginFunc: func(origin string) bool {
-			return true
-		},
-*/
 
 // export PATH=$PATH:/usr/local/go/bin
 // go run .\server.go .\jwtLib.go .\s3Service.go

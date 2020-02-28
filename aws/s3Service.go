@@ -100,19 +100,34 @@ func S3Download(objectKey, userSub string) []byte {
 	return buffer.Bytes()
 }
 
-func GetImages(folder, userSub string) ([][]byte, error) {
-	maxElem := 10
+type ImageList struct {
+	Images            []ImageData
+	ContinuationToken string
+}
+
+type ImageData struct {
+	Name string
+	Data []byte
+}
+
+func GetImages(album, continuation, userSub string, resolution int) (ImageList, error) {
 	bucket := "imagelink-version-3-upload-bucket"
-	var bytes = make([][]byte, 0, maxElem)
+	var bytes = make([]ImageData, 0, constants.MaxImageRequest)
+	var imageList ImageList
 
 	sess, _ := session.NewSession(&aws.Config{
 		Region: aws.String("eu-central-1")},
 	)
 
 	svc := s3.New(sess)
+	var token *string
+	if continuation != "" {
+		token = &continuation
+	}
 	input := &s3.ListObjectsV2Input{
-		Bucket:  aws.String(bucket),
-		MaxKeys: aws.Int64(int64(maxElem)),
+		Bucket:            aws.String(bucket),
+		MaxKeys:           aws.Int64(int64(constants.MaxImageRequest)),
+		ContinuationToken: token,
 	}
 
 	result, err := svc.ListObjectsV2(input)
@@ -129,7 +144,7 @@ func GetImages(folder, userSub string) ([][]byte, error) {
 			// Message from an error.
 			fmt.Println(err.Error())
 		}
-		return bytes, err
+		return imageList, err
 	}
 
 	downloader := s3manager.NewDownloader(sess)
@@ -146,9 +161,14 @@ func GetImages(folder, userSub string) ([][]byte, error) {
 			})
 		if err != nil {
 			fmt.Println("Error occured while reading from Bucket:", err)
-			return bytes, err
+			return imageList, err
 		}
-		bytes = append(bytes, image.ScaleImage2(buffer.Bytes(), constants.ImageSize))
+		bytes = append(bytes, ImageData{Name: *content.Key, Data: image.ScaleImage2(buffer.Bytes(), resolution)})
 	}
-	return bytes, nil
+	fmt.Println("Con Token: ", result.NextContinuationToken)
+	if result.NextContinuationToken != nil {
+		imageList.ContinuationToken = *result.NextContinuationToken
+	}
+	imageList.Images = bytes
+	return imageList, nil
 }
