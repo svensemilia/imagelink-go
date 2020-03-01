@@ -169,6 +169,7 @@ func images(c *gin.Context) {
 		return
 	}
 
+	aws.GetSubDirs(album, userSub)
 	images, err := aws.GetImages(album, continueToken, userSub, resolutionInt)
 
 	if err != nil {
@@ -211,4 +212,5 @@ func CORS() gin.HandlerFunc {
 }
 
 // export PATH=$PATH:/usr/local/go/bin
+// /home/ec2-user/go/bin/imagelink-go
 // go run .\server.go .\jwtLib.go .\s3Service.go

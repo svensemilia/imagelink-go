@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/svensemilia/imagelink-go/constants"
+	"github.com/svensemilia/imagelink-go/helper"
 	"github.com/svensemilia/imagelink-go/image"
 )
 
@@ -128,6 +129,7 @@ func GetImages(album, continuation, userSub string, resolution int) (ImageList, 
 		Bucket:            aws.String(bucket),
 		MaxKeys:           aws.Int64(int64(constants.MaxImageRequest)),
 		ContinuationToken: token,
+		Prefix:            helper.AddSlash(userSub),
 	}
 
 	result, err := svc.ListObjectsV2(input)
@@ -151,7 +153,11 @@ func GetImages(album, continuation, userSub string, resolution int) (ImageList, 
 	var imgBuffer []byte
 	var buffer *aws.WriteAtBuffer
 	for _, content := range result.Contents {
+		if *content.Size == 0 {
+			continue
+		}
 		imgBuffer = make([]byte, 0, int(*content.Size))
+		fmt.Println(*content.Key, *content.Size)
 		buffer = aws.NewWriteAtBuffer(imgBuffer)
 
 		_, err = downloader.Download(buffer,
@@ -171,4 +177,39 @@ func GetImages(album, continuation, userSub string, resolution int) (ImageList, 
 	}
 	imageList.Images = bytes
 	return imageList, nil
+}
+
+func GetSubDirs(album, userSub string) ([]string, error) {
+	var dirNames = make([]string, 0, constants.MaxImageRequest)
+
+	sess, _ := session.NewSession(&aws.Config{
+		Region: aws.String("eu-central-1")},
+	)
+
+	svc := s3.New(sess)
+	deli := "/"
+
+	input := &s3.ListObjectsV2Input{
+		Bucket:    aws.String(constants.Bucket),
+		Delimiter: &deli,
+		MaxKeys:   aws.Int64(int64(constants.MaxImageRequest)),
+		Prefix:    helper.BuildObjectPath(userSub, album),
+	}
+
+	var trimmedDir string
+	err := svc.ListObjectsV2Pages(input,
+		func(page *s3.ListObjectsV2Output, lastPage bool) bool {
+			for _, content := range page.CommonPrefixes {
+				trimmedDir = *content.Prefix
+				if strings.HasSuffix(trimmedDir, "/") {
+					trimmedDir = strings.TrimRight(trimmedDir, "/")
+				}
+				trimmedDir = trimmedDir[strings.LastIndex(trimmedDir, "/")+1 : len(trimmedDir)]
+				dirNames = append(dirNames, trimmedDir)
+
+			}
+			return true
+		})
+	fmt.Println("Dirnames ", dirNames)
+	return dirNames, err
 }
