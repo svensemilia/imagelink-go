@@ -169,7 +169,7 @@ func images(c *gin.Context) {
 		return
 	}
 
-	aws.GetSubDirs(album, userSub)
+	//aws.GetSubDirs(album, userSub)
 	images, err := aws.GetImages(album, continueToken, userSub, resolutionInt)
 
 	if err != nil {
@@ -177,7 +177,7 @@ func images(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, images)
+	c.JSON(200, *images)
 }
 
 func main() {

@@ -103,6 +103,7 @@ func S3Download(objectKey, userSub string) []byte {
 
 type ImageList struct {
 	Images            []ImageData
+	Dirs              []string
 	ContinuationToken string
 }
 
@@ -111,7 +112,7 @@ type ImageData struct {
 	Data []byte
 }
 
-func GetImages(album, continuation, userSub string, resolution int) (ImageList, error) {
+func GetImages(album, continuation, userSub string, resolution int) (*ImageList, error) {
 	bucket := "imagelink-version-3-upload-bucket"
 	var bytes = make([]ImageData, 0, constants.MaxImageRequest)
 	var imageList ImageList
@@ -125,11 +126,13 @@ func GetImages(album, continuation, userSub string, resolution int) (ImageList, 
 	if continuation != "" {
 		token = &continuation
 	}
+	deli := "/"
 	input := &s3.ListObjectsV2Input{
 		Bucket:            aws.String(bucket),
 		MaxKeys:           aws.Int64(int64(constants.MaxImageRequest)),
 		ContinuationToken: token,
-		Prefix:            helper.AddSlash(userSub),
+		Prefix:            helper.BuildObjectPath(userSub, album),
+		Delimiter:         &deli,
 	}
 
 	result, err := svc.ListObjectsV2(input)
@@ -146,7 +149,7 @@ func GetImages(album, continuation, userSub string, resolution int) (ImageList, 
 			// Message from an error.
 			fmt.Println(err.Error())
 		}
-		return imageList, err
+		return &imageList, err
 	}
 
 	downloader := s3manager.NewDownloader(sess)
@@ -167,7 +170,7 @@ func GetImages(album, continuation, userSub string, resolution int) (ImageList, 
 			})
 		if err != nil {
 			fmt.Println("Error occured while reading from Bucket:", err)
-			return imageList, err
+			return &imageList, err
 		}
 		bytes = append(bytes, ImageData{Name: *content.Key, Data: image.ScaleImage2(buffer.Bytes(), resolution)})
 	}
@@ -176,7 +179,11 @@ func GetImages(album, continuation, userSub string, resolution int) (ImageList, 
 		imageList.ContinuationToken = *result.NextContinuationToken
 	}
 	imageList.Images = bytes
-	return imageList, nil
+	dirs, err := GetSubDirs(album, userSub)
+	if err == nil {
+		imageList.Dirs = dirs
+	}
+	return &imageList, err
 }
 
 func GetSubDirs(album, userSub string) ([]string, error) {
