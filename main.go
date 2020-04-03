@@ -8,7 +8,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/svensemilia/imagelink-go/aws"
-	"github.com/svensemilia/imagelink-go/image"
 )
 
 func healthCheck(c *gin.Context) {
@@ -88,34 +87,6 @@ func uploadFiles(c *gin.Context) {
 	c.JSON(200, gin.H{"msg": "Successfully Uploaded Files"})
 }
 
-func imageDownloadScaled(c *gin.Context) {
-
-	resourceId := "/6823214-large.jpg"
-	fmt.Println(resourceId)
-	if len(resourceId) == 0 {
-		c.JSON(500, gin.H{
-			"error": "No specific resource requested!",
-		})
-		return
-	} else {
-		fmt.Println("The requested resource has the Id", resourceId)
-	}
-
-	jwt := c.Request.Header.Get("Authorization")
-	userSub := aws.ExtractSub(jwt)
-	byteArray := aws.S3Download(resourceId, userSub)
-	fmt.Println("Laenge des ByteArrays", len(byteArray))
-	if byteArray == nil {
-		c.JSON(500, gin.H{
-			"error": "Reading from S3 failed",
-		})
-		return
-	}
-
-	image.ScaleImage(byteArray, 256)
-
-}
-
 func imageDownload(c *gin.Context) {
 
 	resourceId := "test" //aws.GetObjectKey(r, "image")
@@ -191,7 +162,6 @@ func main() {
 	router.POST("/upload", uploadFiles)
 	router.GET("/image", imageDownload)
 	router.GET("/images", images)
-	router.GET("/scale", imageDownloadScaled)
 	router.Run(fmt.Sprintf(":%s", "8080"))
 }
 
@@ -213,4 +183,8 @@ func CORS() gin.HandlerFunc {
 
 // export PATH=$PATH:/usr/local/go/bin
 // /home/ec2-user/go/bin/imagelink-go
+// ps -A (lists all processes)
+// ps -A | grep imagelink-go (filter for imagelink)
+// kill PID
+// sudo kill $(pgrep imagelink-go)
 // go run .\server.go .\jwtLib.go .\s3Service.go

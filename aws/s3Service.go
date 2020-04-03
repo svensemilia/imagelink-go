@@ -108,8 +108,9 @@ type ImageList struct {
 }
 
 type ImageData struct {
-	Name string
-	Data []byte
+	Name    string
+	Content string
+	Data    []byte
 }
 
 func GetImages(album, continuation, userSub string, resolution int) (*ImageList, error) {
@@ -155,6 +156,7 @@ func GetImages(album, continuation, userSub string, resolution int) (*ImageList,
 	downloader := s3manager.NewDownloader(sess)
 	var imgBuffer []byte
 	var buffer *aws.WriteAtBuffer
+	var contentType string
 	for _, content := range result.Contents {
 		if *content.Size == 0 {
 			continue
@@ -172,7 +174,10 @@ func GetImages(album, continuation, userSub string, resolution int) (*ImageList,
 			fmt.Println("Error occured while reading from Bucket:", err)
 			return &imageList, err
 		}
-		bytes = append(bytes, ImageData{Name: *content.Key, Data: image.ScaleImage2(buffer.Bytes(), resolution)})
+		contentType = image.GetContentType(buffer.Bytes())
+		fmt.Println("Content:", contentType)
+		// use ffmpeg for video coding
+		bytes = append(bytes, ImageData{Name: *content.Key, Content: contentType, Data: image.ScaleImage(buffer.Bytes(), resolution)})
 	}
 	fmt.Println("Con Token: ", result.NextContinuationToken)
 	if result.NextContinuationToken != nil {
