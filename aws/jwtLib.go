@@ -19,7 +19,6 @@ var (
 )
 
 func init() {
-	fmt.Println("JWT init called")
 	var err error
 	knownKeys, err = jwk.Fetch(iss + cognitoJwk)
 	if err != nil {
@@ -27,7 +26,7 @@ func init() {
 	}
 }
 
-func ExtractSub(idToken string) string {
+func AuthenticateUser(idToken string) (string, error) {
 	token, err := jwt.Parse(idToken, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
@@ -38,14 +37,16 @@ func ExtractSub(idToken string) string {
 	//TODO handle error - authentication failure
 	if err != nil {
 		fmt.Println(err)
+		return "", err
 	}
 
 	err = ValidateToken(token)
 	if err != nil {
 		fmt.Println(err)
+		return "", err
 	}
 	cast := token.Claims.(jwt.MapClaims)
-	return cast["sub"].(string)
+	return cast["sub"].(string), nil
 }
 
 func ValidateToken(token *jwt.Token) error {

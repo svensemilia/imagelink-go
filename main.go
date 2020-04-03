@@ -17,7 +17,11 @@ func healthCheck(c *gin.Context) {
 func androidUpload(c *gin.Context) {
 
 	jwt := c.Request.Header.Get("Authorization")
-	userSub := aws.ExtractSub(jwt)
+	userSub, err := aws.AuthenticateUser(jwt)
+	if err != nil {
+		c.JSON(401, gin.H{"error": err.Error()})
+		return
+	}
 	album := "android"
 	fmt.Println("User sub", userSub)
 
@@ -56,7 +60,11 @@ func androidUpload(c *gin.Context) {
 func uploadFiles(c *gin.Context) {
 
 	jwt := c.Request.Header.Get("Authorization")
-	userSub := aws.ExtractSub(jwt)
+	userSub, err := aws.AuthenticateUser(jwt)
+	if err != nil {
+		c.JSON(401, gin.H{"error": err.Error()})
+		return
+	}
 	var album string
 	album = "backup"
 	fmt.Println("User sub", userSub)
@@ -101,7 +109,11 @@ func imageDownload(c *gin.Context) {
 	}
 
 	jwt := c.Request.Header.Get("Authorization")
-	userSub := aws.ExtractSub(jwt)
+	userSub, err := aws.AuthenticateUser(jwt)
+	if err != nil {
+		c.JSON(401, gin.H{"error": err.Error()})
+		return
+	}
 	byteArray := aws.S3Download(resourceId, userSub)
 	fmt.Println("Laenge des ByteArrays", len(byteArray))
 	if byteArray == nil {
@@ -132,7 +144,11 @@ func images(c *gin.Context) {
 	continueToken := c.DefaultQuery("continue", "")
 	fmt.Println(resolution, album, continueToken)
 	jwt := c.Request.Header.Get("Authorization")
-	userSub := aws.ExtractSub(jwt)
+	userSub, err := aws.AuthenticateUser(jwt)
+	if err != nil {
+		c.JSON(401, gin.H{"error": err.Error()})
+		return
+	}
 
 	resolutionInt, err := strconv.Atoi(resolution)
 	if err != nil {
