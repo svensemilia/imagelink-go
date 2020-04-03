@@ -89,7 +89,7 @@ func uploadFiles(c *gin.Context) {
 
 func imageDownload(c *gin.Context) {
 
-	resourceId := "test" //aws.GetObjectKey(r, "image")
+	resourceId := "test"
 	fmt.Println(resourceId)
 	if len(resourceId) == 0 {
 		c.JSON(500, gin.H{
@@ -154,8 +154,6 @@ func images(c *gin.Context) {
 func main() {
 	argsWithoutProg := os.Args[1:]
 	fmt.Println(argsWithoutProg)
-
-	aws.ExtractJWT() //remove when tested
 
 	router := gin.Default()
 	router.Use(CORS())
