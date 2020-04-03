@@ -155,6 +155,8 @@ func main() {
 	argsWithoutProg := os.Args[1:]
 	fmt.Println(argsWithoutProg)
 
+	aws.ExtractJWT() //remove when tested
+
 	router := gin.Default()
 	router.Use(CORS())
 	router.GET("/healthcheck", healthCheck)
