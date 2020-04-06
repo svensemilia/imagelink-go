@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 
@@ -31,28 +32,20 @@ func androidUpload(c *gin.Context) {
 
 	album = m.Value["album"][0]
 
-	count := 0
-	collector := make(chan int, 10)
-
+	var wg sync.WaitGroup
+	
 	for key, value := range m.File {
-		count += len(value)
 		fmt.Println("Partname", key)
 		for i := range value {
 			fileHeader := value[i]
 			fmt.Println("Filename", fileHeader.Filename)
 			//for each fileheader, get a handle to the actual file
-			go aws.S3Upload(fileHeader, fileHeader.Filename, userSub, album, collector)
+			wg.Add(1)
+			go aws.S3Upload(fileHeader, fileHeader.Filename, userSub, album, &wg)
 		}
 	}
 
-	counter := 0
-	for range collector {
-		fmt.Println("Upload completed")
-		counter++
-		if counter == count {
-			close(collector)
-		}
-	}
+	wg.Wait()
 
 	c.JSON(200, gin.H{"msg": "Successfully Uploaded Files"})
 }
@@ -73,24 +66,16 @@ func uploadFiles(c *gin.Context) {
 
 	//get the *fileheaders
 	files := m.File["myFiles"]
-	count := len(files)
-	collector := make(chan int, count)
-
+	var wg sync.WaitGroup
+	
 	for i := range files {
 		//for each fileheader, get a handle to the actual file
 		fileHeader := files[i]
-
-		go aws.S3Upload(fileHeader, files[i].Filename, userSub, album, collector)
+		wg.Add(1)
+		go aws.S3Upload(fileHeader, files[i].Filename, userSub, album, &wg)
 	}
 
-	counter := 0
-	for range collector {
-		fmt.Println("Upload completed")
-		counter++
-		if counter == count {
-			close(collector)
-		}
-	}
+	wg.Wait()
 
 	c.JSON(200, gin.H{"msg": "Successfully Uploaded Files"})
 }

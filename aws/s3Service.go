@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"mime/multipart"
 	"strings"
+	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -15,12 +16,12 @@ import (
 	"github.com/svensemilia/imagelink-go/image"
 )
 
-func S3Upload(fileUp *multipart.FileHeader, filename string, userSub string, album string, collector chan int) {
+func S3Upload(fileUp *multipart.FileHeader, filename string, userSub string, album string, wg *sync.WaitGroup) {
+	defer wg.Done()
 	file, err := fileUp.Open()
 	defer file.Close()
 	if err != nil {
 		fmt.Println("Error occured while opening file", err)
-		collector <- 0
 		return
 	}
 
@@ -29,7 +30,6 @@ func S3Upload(fileUp *multipart.FileHeader, filename string, userSub string, alb
 	)
 	if err != nil {
 		fmt.Println("Error occured while creating a AWS session", err)
-		collector <- 0
 		return
 	}
 
@@ -55,14 +55,10 @@ func S3Upload(fileUp *multipart.FileHeader, filename string, userSub string, alb
 		ContentType: &content,
 	})
 	if err != nil {
-		// Print the error and exit.
 		fmt.Println("Unable to upload:", err)
-		collector <- 0
-		return
+	} else {
+		fmt.Printf("Successfully uploaded %q to %q\n", key, bucket)
 	}
-
-	fmt.Printf("Successfully uploaded %q to %q\n", key, bucket)
-	collector <- 1
 }
 
 type ImageList struct {
@@ -85,30 +81,19 @@ func GetImage(album, key, userSub string) (*ImageData, error) {
 	)
 
 	downloader := s3manager.NewDownloader(sess)
-	var imgBuffer []byte
-	var buffer *aws.WriteAtBuffer
-	var contentType string
-
-	imgBuffer = make([]byte, 0, 1)
-	buffer = aws.NewWriteAtBuffer(imgBuffer)
-
+	imgBuffer := make([]byte, 0, 1)
+	buffer := aws.NewWriteAtBuffer(imgBuffer)
 	completeKey := helper.BuildObjectPathWithKey(userSub, album, key)
 
-	_, err := downloader.Download(buffer,
-		&s3.GetObjectInput{
-			Bucket: aws.String(constants.Bucket),
-			Key:    aws.String(completeKey),
-		})
+	bytes, contentType, err := download(completeKey, buffer, downloader)
 
 	if err != nil {
 		return &imageData, err
 	}
 
-	contentType = image.GetContentType(buffer.Bytes())
-
 	imageData.Content = contentType
 	imageData.Name = key
-	imageData.Data = buffer.Bytes()
+	imageData.Data = bytes
 	return &imageData, nil
 }
 
@@ -155,28 +140,22 @@ func GetImages(album, continuation, userSub string, resolution int) (*ImageList,
 	downloader := s3manager.NewDownloader(sess)
 	var imgBuffer []byte
 	var buffer *aws.WriteAtBuffer
-	var contentType string
+
 	for _, content := range result.Contents {
 		if *content.Size == 0 {
 			continue
 		}
 		imgBuffer = make([]byte, 0, int(*content.Size))
-		fmt.Println(*content.Key, *content.Size)
 		buffer = aws.NewWriteAtBuffer(imgBuffer)
 
-		_, err = downloader.Download(buffer,
-			&s3.GetObjectInput{
-				Bucket: aws.String(bucket),
-				Key:    aws.String(*content.Key),
-			})
+		imageBytes, contentType, err := download(*content.Key, buffer, downloader)
+
 		if err != nil {
 			fmt.Println("Error occured while reading from Bucket:", err)
 			return &imageList, err
 		}
-		contentType = image.GetContentType(buffer.Bytes())
-		fmt.Println("Content:", contentType)
 		// use ffmpeg for video coding
-		bytes = append(bytes, ImageData{Name: *content.Key, Content: contentType, Data: image.ScaleImage(buffer.Bytes(), resolution)})
+		bytes = append(bytes, ImageData{Name: *content.Key, Content: contentType, Data: image.ScaleImage(imageBytes, resolution)})
 	}
 	fmt.Println("Con Token: ", result.NextContinuationToken)
 	if result.NextContinuationToken != nil {
@@ -223,4 +202,21 @@ func GetSubDirs(album, userSub string) ([]string, error) {
 		})
 	fmt.Println("Dirnames ", dirNames)
 	return dirNames, err
+}
+
+func download(key string, buffer *aws.WriteAtBuffer, downloader *s3manager.Downloader) ([]byte, string, error) {
+
+	var contentType string
+	_, err := downloader.Download(buffer,
+		&s3.GetObjectInput{
+			Bucket: aws.String(constants.Bucket),
+			Key:    aws.String(key),
+		})
+
+	if err != nil {
+		return nil, "", err
+	}
+
+	contentType = image.GetContentType(buffer.Bytes())
+	return buffer.Bytes(), contentType, nil
 }
