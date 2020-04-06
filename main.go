@@ -15,22 +15,20 @@ func healthCheck(c *gin.Context) {
 	c.JSON(200, gin.H{"msg": "Everything seems to be fine! Nice work"})
 }
 
-func androidUpload(c *gin.Context) {
-
+func upload(c *gin.Context) {
 	jwt := c.Request.Header.Get("Authorization")
 	userSub, err := aws.AuthenticateUser(jwt)
 	if err != nil {
 		c.JSON(401, gin.H{"error": err.Error()})
 		return
 	}
-	album := "android"
-	fmt.Println("User sub", userSub)
-
-	fmt.Println("Files Upload Endpoint Hit")
-
+	
 	m, _ := c.MultipartForm()
-
-	album = m.Value["album"][0]
+	
+	album := ""
+	if len(m.Value["album"]) > 0 {
+		album = m.Value["album"][0]
+	}
 
 	var wg sync.WaitGroup
 	
@@ -43,36 +41,6 @@ func androidUpload(c *gin.Context) {
 			wg.Add(1)
 			go aws.S3Upload(fileHeader, fileHeader.Filename, userSub, album, &wg)
 		}
-	}
-
-	wg.Wait()
-
-	c.JSON(200, gin.H{"msg": "Successfully Uploaded Files"})
-}
-
-func uploadFiles(c *gin.Context) {
-
-	jwt := c.Request.Header.Get("Authorization")
-	userSub, err := aws.AuthenticateUser(jwt)
-	if err != nil {
-		c.JSON(401, gin.H{"error": err.Error()})
-		return
-	}
-	var album string
-	album = "backup"
-	fmt.Println("User sub", userSub)
-
-	m, _ := c.MultipartForm()
-
-	//get the *fileheaders
-	files := m.File["myFiles"]
-	var wg sync.WaitGroup
-	
-	for i := range files {
-		//for each fileheader, get a handle to the actual file
-		fileHeader := files[i]
-		wg.Add(1)
-		go aws.S3Upload(fileHeader, files[i].Filename, userSub, album, &wg)
 	}
 
 	wg.Wait()
@@ -141,8 +109,7 @@ func main() {
 	router := gin.Default()
 	router.Use(CORS())
 	router.GET("/healthcheck", healthCheck)
-	router.POST("/androidUpload", androidUpload)
-	router.POST("/upload", uploadFiles)
+	router.POST("/upload", upload)
 	router.GET("/image", image)
 	router.GET("/images", images)
 	router.Run(fmt.Sprintf(":%s", "8080"))
