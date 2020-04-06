@@ -95,17 +95,13 @@ func uploadFiles(c *gin.Context) {
 	c.JSON(200, gin.H{"msg": "Successfully Uploaded Files"})
 }
 
-func imageDownload(c *gin.Context) {
+func image(c *gin.Context) {
+	album := c.DefaultQuery("album", "")
+	imageKey := c.Query("key")
 
-	resourceId := "test"
-	fmt.Println(resourceId)
-	if len(resourceId) == 0 {
-		c.JSON(500, gin.H{
-			"error": "No specific resource requested!",
-		})
+	if len(imageKey) == 0 {
+		c.JSON(500, gin.H{"error": "No specific resource requested!"})
 		return
-	} else {
-		fmt.Println("The requested resource has the Id", resourceId)
 	}
 
 	jwt := c.Request.Header.Get("Authorization")
@@ -114,28 +110,14 @@ func imageDownload(c *gin.Context) {
 		c.JSON(401, gin.H{"error": err.Error()})
 		return
 	}
-	byteArray := aws.S3Download(resourceId, userSub)
-	fmt.Println("Laenge des ByteArrays", len(byteArray))
-	if byteArray == nil {
-		c.JSON(500, gin.H{
-			"error": "Reading from S3 failed",
-		})
+
+	image, err := aws.GetImage(album, imageKey, userSub)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
 
-	ret := gin.H{}
-	ret["image"] = byteArray
-	c.JSON(200, ret)
-
-	/*
-		w.Header().Set("Content-Type", "image/jpeg")
-		_, err := w.Write(byteArray)
-		if err != nil {
-			fmt.Println("Error?")
-			fmt.Fprintf(w, "Writing to Response failed")
-			return
-		}
-	*/
+	c.JSON(200, *image)
 }
 
 func images(c *gin.Context) {
@@ -176,7 +158,7 @@ func main() {
 	router.GET("/healthcheck", healthCheck)
 	router.POST("/androidUpload", androidUpload)
 	router.POST("/upload", uploadFiles)
-	router.GET("/image", imageDownload)
+	router.GET("/image", image)
 	router.GET("/images", images)
 	router.Run(fmt.Sprintf(":%s", "8080"))
 }

@@ -65,42 +65,6 @@ func S3Upload(fileUp *multipart.FileHeader, filename string, userSub string, alb
 	collector <- 1
 }
 
-func S3Download(objectKey, userSub string) []byte {
-	sess, err := session.NewSession(&aws.Config{
-		Region: aws.String("eu-central-1")},
-	)
-	if err != nil {
-		fmt.Println("Error occured while creating a AWS session", err)
-		return nil
-	}
-
-	downloader := s3manager.NewDownloader(sess)
-
-	bucket := "imagelink-version-3-upload-bucket"
-	var stringBuilder strings.Builder
-	stringBuilder.WriteString(userSub)
-	stringBuilder.WriteString(objectKey)
-	key := stringBuilder.String()
-
-	var buffer *aws.WriteAtBuffer
-	init := make([]byte, 0, 200000)
-	fmt.Println(len(init))
-	buffer = aws.NewWriteAtBuffer(init)
-
-	fmt.Println("S3 reading key", key)
-	_, err = downloader.Download(buffer,
-		&s3.GetObjectInput{
-			Bucket: aws.String(bucket),
-			Key:    aws.String(key),
-		})
-	if err != nil {
-		fmt.Println("Error occured while reading from Bucket:", err)
-		return nil
-	}
-
-	return buffer.Bytes()
-}
-
 type ImageList struct {
 	Images            []ImageData
 	Dirs              []string
@@ -111,6 +75,41 @@ type ImageData struct {
 	Name    string
 	Content string
 	Data    []byte
+}
+
+func GetImage(album, key, userSub string) (*ImageData, error) {
+	imageData := ImageData{}
+
+	sess, _ := session.NewSession(&aws.Config{
+		Region: aws.String("eu-central-1")},
+	)
+
+	downloader := s3manager.NewDownloader(sess)
+	var imgBuffer []byte
+	var buffer *aws.WriteAtBuffer
+	var contentType string
+
+	imgBuffer = make([]byte, 0, 1)
+	buffer = aws.NewWriteAtBuffer(imgBuffer)
+
+	completeKey := helper.BuildObjectPathWithKey(userSub, album, key)
+
+	_, err := downloader.Download(buffer,
+		&s3.GetObjectInput{
+			Bucket: aws.String(constants.Bucket),
+			Key:    aws.String(completeKey),
+		})
+
+	if err != nil {
+		return &imageData, err
+	}
+
+	contentType = image.GetContentType(buffer.Bytes())
+
+	imageData.Content = contentType
+	imageData.Name = key
+	imageData.Data = buffer.Bytes()
+	return &imageData, nil
 }
 
 func GetImages(album, continuation, userSub string, resolution int) (*ImageList, error) {

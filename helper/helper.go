@@ -12,3 +12,8 @@ func BuildObjectPath(userSub, album string) *string {
 	}
 	return &temp
 }
+
+func BuildObjectPathWithKey(userSub, album, key string) string {
+	albumPath := BuildObjectPath(userSub, album)
+	return *albumPath + key
+}
